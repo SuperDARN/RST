@@ -25,10 +25,15 @@ set -e
 # Command line options
 
 ############################################################################
-
 if [ ${#} -ge 1 ]
 then
-  mtype=${1}
+    if [ ${1} == "-vb" ]
+    then
+        verbose=-vb
+    else
+        verbose=""
+        mtype=${1}
+    fi
 else
   mtype=""
 fi
@@ -78,7 +83,7 @@ makeaction() {
   if [ "${mode}" = "stdin" ]
   then
     echo ${module##*/} ${opt}
-    echo ${module##*/} | makeall -vb ${patn} ${opt} \
+    echo ${module##*/} | make ${verbose} ${patn} ${opt} \
          ${src%/*} stdin >> ${log}.${dtval}
 
 
@@ -87,7 +92,8 @@ makeaction() {
     then
       src=${src}.*
     fi
-    makeall -vb ${patn} ${opt} ${src} >> ${log}.${dtval}
+    echo ${patn} ${opt} ${src} 
+    make ${verbose} ${patn} ${opt} ${src} >> ${log}.${dtval}
 
   fi
   return 0
@@ -170,4 +176,3 @@ then
   if ! [ -L startup.pro ]; then ln -svf ../codebase/superdarn/src.idl/startup/startup.pro startup.pro; fi
 fi
 exit 0
-

@@ -279,6 +279,7 @@ int main(int argc,char *argv[]) {
 
     int farg=0;
     int fnum=0;
+    int first=1;
 
     unsigned char help=0;
     unsigned char option=0;
@@ -666,10 +667,6 @@ int main(int argc,char *argv[]) {
         /* If either start time or date not provided as input then determine it */
         if ((stime !=-1) || (sdate !=-1)) {
 
-            /* we must skip the start of the files */
-            int yr,mo,dy,hr,mt;
-            double sc;
-
             /* If start time not provided then use time of first record
              * in fit file */
             if (stime==-1) stime= ( (int) src[0]->st_time % (24*3600));
@@ -776,8 +773,8 @@ int main(int argc,char *argv[]) {
             if (tlen !=0) etime+=tlen;
             else etime+=15+src[0]->ed_time-src[0]->st_time;
         }
-            
-        /* Calculate year, month, day, hour, minute, and second of 
+
+        /* Calculate year, month, day, hour, minute, and second of
          * grid start time (needed to load AACGM_v2 coefficients) */
         TimeEpochToYMDHMS(stime,&yr,&mo,&dy,&hr,&mt,&sc);
 
@@ -999,14 +996,132 @@ int main(int argc,char *argv[]) {
                 }
 
             }
-        
-            /* Calculate year, month, day, hour, minute, and second of 
-             * grid start time (needed to load AACGM_v2 coefficients) */
-            TimeEpochToYMDHMS(src[index]->st_time,&yr,&mo,&dy,&hr,&mt,&sc);
 
-            /* Load AACGM coefficients */
-            if (old_aacgm) AACGMInit(yr);
-            else AACGM_v2_SetDateTime(yr,mo,dy,0,0,0);
+            if (first == 1) {
+                /* If either start time or date not provided as input then determine it
+                 * (first file only) */
+                if ((stime !=-1) || (sdate !=-1)) {
+
+                    /* If start time not provided then use time of first record
+                     * in fit file */
+                    if (stime==-1) stime= ( (int) src[index]->st_time % (24*3600));
+
+                    /* If start date not provided then use date of first record
+                     * in fit file, otherwise use provided sdate */
+                    if (sdate==-1) stime+=src[index]->st_time -
+                                            ( (int) src[index]->st_time % (24*3600));
+                    else stime+=sdate;
+
+                    /* If median filter is going to be applied then we need to load data
+                     * prior to the usuals tart time, so stime needs to be adjusted */
+                    if (bxcar==1) {
+                        /* subtract one src */
+                        if (tlen !=0) stime-=tlen;
+                        else stime-=15+src[index]->ed_time-src[index]->st_time; /* pad to make sure */
+                    }
+
+                } else stime=src[index]->st_time;   /* If start date and time not provided
+                                                     * then use time of first record in
+                                                     * input file */
+
+                /* If end time provided then determine end date */
+                if (etime !=-1) {
+                    /* If end date not provided then use date of first record
+                     * in input file */
+                    if (edate==-1) etime+=src[0]->st_time -
+                                    ( (int) src[0]->st_time % (24*3600));
+                    else etime+=edate;
+                }
+
+                /* If time extent provided then use that to calculate end time */
+                if (extime !=0) etime=stime+extime;
+
+                /* If end time is set and median filtering is to be applied then need
+                 * to load data after the usual end time, so etime must be adjusted */
+                if ((etime !=-1) && (bxcar==1)) {
+                    if (tlen !=0) etime+=tlen;
+                    else etime+=15+src[0]->ed_time-src[0]->st_time;
+                }
+
+                /* Calculate year, month, day, hour, minute, and second of
+                 * grid start time (needed to load AACGM_v2 coefficients) */
+                TimeEpochToYMDHMS(stime,&yr,&mo,&dy,&hr,&mt,&sc);
+
+                /* Load AACGM coefficients */
+                if (old_aacgm) AACGMInit(yr);
+                else AACGM_v2_SetDateTime(yr,mo,dy,0,0,0);
+
+                first = 0;
+            }
+
+            /* Calculate year, month, day, hour, minute, and second of 
+             * grid start time (make sure it doesn't get overwritten) */
+            TimeEpochToYMDHMS(stime,&yr,&mo,&dy,&hr,&mt,&sc);
+
+            /* Search for index of corresponding record in input file given
+             * grid start time */
+            if (src[index]->st_time < stime) {
+                if (fitflg) {
+                    /* Input file is in fit or fitacf format */
+
+                    if (old) s=OldFitSeek(oldfitfp,yr,mo,dy,hr,mt,sc,NULL);
+                    else s=FitFseek(fitfp,yr,mo,dy,hr,mt,sc,NULL,inx);
+
+                    /* If a matching record could not be found then continue to next file */
+                    if (s ==-1) {
+                        if (old) OldFitClose(oldfitfp);
+                        else fclose(fitfp);
+                        continue;
+                    }
+
+                    /* If using scan flag instead of tlen then continue to read
+                     * fit records until reaching the beginning of a new scan */
+                    if (tlen==0) {
+                        if (old) {
+                            while ((s=OldFitRead(oldfitfp,prm,fit)) !=-1) {
+                                if (abs(prm->scan)==1) break;
+                            }
+                        } else {
+                            while ((s=FitFread(fitfp,prm,fit)) !=-1) {
+                                if (abs(prm->scan)==1) break;
+                            }
+                        }
+                    } else state=0;
+
+                    /* Read the first full scan of data from open fit or fitacf file
+                     * corresponding to grid start date and time */
+                    if (old) s=OldFitReadRadarScan(oldfitfp,&state,src[index],prm,fit,
+                                        tlen,syncflg,channel);
+                    else s=FitFreadRadarScan(fitfp,&state,src[index],prm,fit,
+                                        tlen,syncflg,channel);
+
+                } else {
+                    /* Input file is in cfit format */
+
+                    s=CFitSeek(cfitfp,yr,mo,dy,hr,mt,sc,NULL,NULL);
+
+                    /* If a matching record could not be found then continue to next file */
+                    if (s ==-1) {
+                        CFitClose(cfitfp);
+                        continue;
+                    }
+
+                    /* If using scan flag instead of tlen then continue to read
+                     * cfit records until reaching the beginning of a new scan */
+                    if (tlen==0) {
+                        while ((s=CFitRead(cfitfp,cfit)) !=-1) {
+                            if (cfit->scan==1) break;
+                        }
+                    } else state=0;
+
+                    /* Read the first full scan of data from open cfit file
+                     * corresponding to grid start date and time */
+                    s=CFitReadRadarScan(cfitfp,&state,src[index],cfit,tlen,syncflg,channel);
+                }
+            }
+
+            /* If scan data is beyond end of gridding time then try next file */
+            if ((etime !=-1) && (src[index]->st_time>etime)) continue;
 
             /* This value tracks the number of radar scans which have been
              * loaded for gridding */

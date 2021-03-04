@@ -1432,7 +1432,7 @@ int main(int argc,char *argv[]) {
             tlat=blat;
           }
           btm=bhgt*(blat-abs(latmin))/(abs(latmax)-abs(latmin));
-          top=bhgt*(tlat-abs(latmin))/(latmax-abs(latmin));
+          top=bhgt*(tlat-abs(latmin))/(abs(latmax)-abs(latmin));
         }
 
         if (btm==top) top++;

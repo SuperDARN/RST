@@ -1431,8 +1431,8 @@ int main(int argc,char *argv[]) {
             blat=tlat;
             tlat=blat;
           }
-          btm=bhgt*(blat-latmin)/(latmax-latmin);
-          top=bhgt*(tlat-latmin)/(latmax-latmin);
+          btm=bhgt*(blat-abs(latmin))/(abs(latmax)-abs(latmin));
+          top=bhgt*(tlat-abs(latmin))/(latmax-abs(latmin));
         }
 
         if (btm==top) top++;
@@ -1656,7 +1656,7 @@ int main(int argc,char *argv[]) {
 
   if (ymajor==0) {
     if (kmflg) ymajor=(erang-frang)/ytick;
-    else if ((geoflg) || (magflg)) ymajor=(latmax-latmin)/ytick;
+    else if ((geoflg) || (magflg)) ymajor=(abs(latmax)-abs(latmin))/ytick;
     else ymajor=15;
   }
   if (yminor==0) yminor=5;
